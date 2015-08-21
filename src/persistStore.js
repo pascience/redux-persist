@@ -33,6 +33,24 @@ module.exports = function persistStore(store, config, cb){
       })
     })
   })
+  function rehydrate(key, cb){
+    storage.getItem(createStorageKey(key), function(err, serialized){
+      try{
+        if(err){ throw err }
+        let data = deserialize(serialized)
+        let state = transforms.reduceRight(function(subState, transformer){
+          return transformer.out(subState)
+        }, data)
+        if(purgeMode === '*' || (Array.isArray(purgeMode) && purgeMode.indexOf(key) !== -1)){ return }
+        store.dispatch(rehydrateAction(key, state))
+      }
+      catch(e){
+        console.warn('Error restoring data for key:', key, e)
+        storage.removeItem(key, warnIfRemoveError)
+      }
+      cb()
+    })
+  }
 
   let storesToProcess = []
   //store state to disk
@@ -73,25 +91,6 @@ module.exports = function persistStore(store, config, cb){
   })
 
   var purgeMode = false
-
-  function rehydrate(key, cb){
-    storage.getItem(createStorageKey(key), function(err, serialized){
-      try{
-        if(err){ throw err }
-        let data = deserialize(serialized)
-        let state = transforms.reduceRight(function(subState, transformer){
-          return transformer.out(subState)
-        }, data)
-        if(purgeMode === '*' || (Array.isArray(purgeMode) && purgeMode.indexOf(key) !== -1)){ return }
-        store.dispatch(rehydrateAction(key, state))
-      }
-      catch(e){
-        console.warn('Error restoring data for key:', key, e)
-        storage.removeItem(key, warnIfRemoveError)
-      }
-      cb()
-    })
-  }
 
   return {
     purge: function(keys){
